@@ -7,6 +7,12 @@ on:
       - dev
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Image tag override (default: branch name)'
+        required: false
+        default: ''
 
 jobs:
   docker:
@@ -39,10 +45,15 @@ jobs:
 
       - name: Determine image tag
         run: |
-          if [ "${{ github.ref_name }}" = "dev" ]; then
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "IMAGE_TAG=${{ github.event.inputs.tag }}" >> $GITHUB_ENV
+          elif [ "${{ github.ref_name }}" = "dev" ]; then
             echo "IMAGE_TAG=dev" >> $GITHUB_ENV
-          else
+          elif [ "${{ github.ref_name }}" = "main" ]; then
             echo "IMAGE_TAG=latest" >> $GITHUB_ENV
+          else
+            SAFE_TAG=$(echo "${{ github.ref_name }}" | sed 's/[^a-zA-Z0-9._-]/-/g')
+            echo "IMAGE_TAG=${SAFE_TAG}" >> $GITHUB_ENV
           fi
 
       - name: Set up QEMU
@@ -60,10 +71,10 @@ jobs:
 
       - name: Determine platforms
         run: |
-          if [ "${{ github.ref_name }}" = "dev" ]; then
-            echo "PLATFORMS=linux/amd64" >> $GITHUB_ENV
-          else
+          if [ "${{ github.ref_name }}" = "main" ]; then
             echo "PLATFORMS=linux/amd64,linux/arm64" >> $GITHUB_ENV
+          else
+            echo "PLATFORMS=linux/amd64" >> $GITHUB_ENV
           fi
 
       - name: Build and push
